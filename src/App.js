@@ -3,26 +3,35 @@ import Searchbar from "./components/Searchbar/Searchbar";
 import ImageGallery from "./components/ImageGallery/ImageGallery";
 import ImageGalleryItem from "./components/ImageGalleryItem/ImageGalleryItem";
 import Modal from "./components/Modal/Modal";
+import Button from "./components/Button/Button";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
+import Loader from "react-loader-spinner";
 class App extends Component {
   state = {
     pictures: [],
     searchPictureName: "",
+    currentPage: 1,
     error: null,
     loading: false,
     modal: false,
     modalUrl: "",
     modalAlt: "",
+    currentPageImages: "",
   };
 
   onFormSubmit = (searchPicture) => {
-    this.setState({ searchPictureName: searchPicture });
+    this.setState({
+      searchPictureName: searchPicture,
+        currentPage: 1,
+      pictures: [],
+    });
   };
   toggleModal = () => {
-  this.setState(({ modal }) => ({
+    this.setState(({ modal }) => ({
       modal: !modal,
-    }))
+    }));
   };
   onPictureClick = (e) => {
     this.setState({
@@ -31,41 +40,75 @@ class App extends Component {
     });
     this.toggleModal();
   };
+
   componentDidUpdate(prevProps, prevState) {
     const currentName = this.state.searchPictureName;
-    const url = `https://pixabay.com/api/?image_type=photo&orientation=horizontal&q=${currentName}&page=${1}&per_page=12&key=21861129-b5e52c4cca63d1835e3548bf1`;
-    if (prevState.searchPictureName !== this.state.searchPictureName) {
-      this.setState({ loading: true, pictures: [], error: null });
-      fetch(url)
-        .then(response => {
-          return response.json();
-        })
-        .then(({ hits }) => {
-          if (hits.length !== 0) {
-            return hits;
-          }
-          return Promise.reject(new Error("No such pictures found"));
-        })
-        .then((pictures) => this.setState({ pictures }))
-        .catch((error) => {
-          this.setState({ error });
-        })
-        .finally(() => this.setState({ loading: false }));
-    }
+    const prevName = prevState.searchPictureName;
+    if (prevName !== currentName) {
+      this.fetchImages();
+      }
+      
   }
+  fetchImages = () => {
+    const currentName = this.state.searchPictureName;
+    const currentPage = this.state.currentPage;
+    const url = `https://pixabay.com/api/?image_type=photo&orientation=horizontal&q=${currentName}&page=${currentPage}&per_page=12&key=21861129-b5e52c4cca63d1835e3548bf1`;
+
+    this.setState({ loading: true,  error: null });
+    fetch(url)
+      .then((response) => {
+        return response.json();
+      })
+      .then(({ hits }) => {
+        if (hits.length !== 0) {
+          return hits;
+        }
+        return Promise.reject(new Error("No such pictures found"));
+      })
+      .then((pictures) =>
+        this.setState((prevState) => ({
+          pictures: [...prevState.pictures, ...pictures],
+          currentPage: prevState.currentPage + 1,
+          currentPageImages: [...pictures],
+        }))
+      )
+
+     
+
+      .catch((error) => {
+        this.setState({ error });
+      })
+      .finally(() => this.setState({ loading: false }));
+  };
+
+ 
 
   render() {
-    const { pictures, loading, error, modal, modalUrl, modalAlt } = this.state;
+    const {
+      pictures,
+      loading,
+      error,
+      modal,
+      modalUrl,
+      modalAlt,
+      currentPageImages,
+    } = this.state;
+    const shouldRenderLoadMoreButton =
+      !(currentPageImages.length < 12) && !loading;
     return (
       <>
         <Searchbar onSubmit={this.onFormSubmit} />
         {error && <p>{error.message}</p>}
-        {loading && <p>...Loding</p>}
- {modal && (
-          <Modal onClose={this.toggleModal}>
-            <img src={modalUrl} alt={modalAlt} />
-          </Modal>
+        {loading && (
+          <Loader
+            type="Puff"
+            color="#00BFFF"
+            height={100}
+            width={100}
+            timeout={3000}
+          />
         )}
+
         <ImageGallery>
           {pictures.map(({ largeImageURL, tags, webformatURL, id }) => (
             <ImageGalleryItem
@@ -74,11 +117,17 @@ class App extends Component {
               webformatURL={webformatURL}
               key={id}
               onPictureClick={this.onPictureClick}
-              
             />
           ))}
         </ImageGallery>
-       
+        {modal && (
+          <Modal src={modalUrl} alt={modalAlt} onClose={this.toggleModal} />
+          
+        )}
+        {shouldRenderLoadMoreButton && !error && (
+          <Button onFetchImages={this.fetchImages} />
+        )}
+
         <ToastContainer
           position="top-center"
           autoClose={2000}
